@@ -1,4 +1,3 @@
-
 /*
  * Copyright (c) 2024 xtedious
  *
@@ -103,6 +102,7 @@ typedef struct {
         int16_t rawTemp;
         float accelX, accelY, accelZ;
         float gyroX, gyroY, gyroZ;
+        float yaw, pitch, roll;
         float tempC; // This is the temperature in degree Celsius
 } mpu6050_data;
 
@@ -122,12 +122,21 @@ void mpu6050_set_sample_rate_div(mpu6050_device *device);
 
 // TO DO -
 void mpu6050_set_dlpf_bandwidth(mpu6050_device *device);
-
 void mpu6050_fifo_read(mpu6050_device *device, mpu6050_data *sensor_data);
+
 void mpu6050_poll_data(mpu6050_device *device, mpu6050_data *sensor_data);
 
-// Writes data into the yaw , pitch and roll
+// Generates yaw, pitch and roll numbers
+void mpu6050_gen_euler_angles(mpu6050_device *device,
+                              mpu6050_data *sensor_data);
+
+// Prints all the data comming from the mpu6050 (accel in g, gyro in dps adn
+// temp in degree Celsius)
 void mpu6050_print_imu_data(mpu6050_device *device, mpu6050_data *sensor_data);
+
+// Prints yaw, pitch and roll
+void mpu6050_print_euler_angles(mpu6050_device *device,
+                                mpu6050_data *sensor_data);
 
 // This function sets up the mpu6050 to the default i2c instance which is on
 // gpio// 4 and 5, it also initializes the i2c to 400kHz

@@ -25,6 +25,7 @@
 #include "hardware/gpio.h"
 #include "pico/stdlib.h"
 
+#include <math.h>
 #include <stdio.h>
 
 // ACCEL and GYRO Settings
@@ -182,9 +183,6 @@ void mpu6050_set_gyro_scale(mpu6050_device *device) {
 // TO_DO - remove enums and use enable flags/parameters
 void mpu6050_set_fifo_config(mpu6050_device *device) {}
 
-// Setup the sample rate and dlpf configuration
-// TO DO - Seperate DLPF config.
-// - change parameters to allow setup of desired sample_rate.
 void mpu6050_set_sample_rate_div(mpu6050_device *device) {
 
     float gyro_output_rate = device->config->dlpf_cfg == DLPF_CFG_0
@@ -234,12 +232,32 @@ static void mpu6050_process_raw(mpu6050_device *device,
     sensor_data->tempC = (float)sensor_data->rawTemp / 340 + 36.53;
 }
 
+void mpu6050_gen_euler_angles(mpu6050_device *device,
+                              mpu6050_data *sensor_data) {
+    mpu6050_poll_data(device, sensor_data);
+    mpu6050_process_raw(device, sensor_data);
+
+    sensor_data->roll =
+        acos(sensor_data->accelZ /
+             sqrt(pow(sensor_data->accelY, 2) + pow(sensor_data->accelZ, 2))) *
+        180.0f / M_PI;
+    sensor_data->pitch =
+        acos(sensor_data->accelZ /
+             sqrt(pow(sensor_data->accelX, 2) + pow(sensor_data->accelZ, 2))) *
+        180.0f / M_PI;
+}
+
+void mpu6050_print_euler_angles(mpu6050_device *device,
+                                mpu6050_data *sensor_data) {
+    mpu6050_gen_euler_angles(device, sensor_data);
+
+    printf("roll: %f degrees\t pitch: %f degrees\n", sensor_data->roll,
+           sensor_data->pitch);
+}
+
 void mpu6050_print_imu_data(mpu6050_device *device, mpu6050_data *sensor_data) {
-    if (device->config->fifo_en) {
-        mpu6050_fifo_read(device, sensor_data);
-    } else {
-        mpu6050_poll_data(device, sensor_data);
-    }
+
+    mpu6050_poll_data(device, sensor_data);
 
     mpu6050_process_raw(device, sensor_data);
     printf("accelX: %f g\t accelY: %f g\t accelZ: %f g\n temp: %f C\n",
