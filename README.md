@@ -7,3 +7,7 @@ TO DO:
 - [] Allow reading from the FIFO buffer on the mpu6050
 - [] Flesh out the comments on the functions
 - [] Properly make it into a library with add_library()
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
