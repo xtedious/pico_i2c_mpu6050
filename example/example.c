@@ -31,6 +31,7 @@ int main() {
     while (1) {
         gpio_put(25, !gpio_get(25));
         sleep_ms(100);
-        mpu6050_print_imu_data(mpu6050, &imu_data);
+        /*mpu6050_print_imu_data(mpu6050, &imu_data);*/
+        mpu6050_print_euler_angles(mpu6050, &imu_data);
     }
 }
