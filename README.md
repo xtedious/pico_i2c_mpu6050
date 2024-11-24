@@ -7,7 +7,7 @@ TO DO:
 - Allow reading from the FIFO buffer on the mpu6050
 - Flesh out the comments on the functions
 - Properly make it into a library with add_library()
-- Write the yaw measurement using integration
+- Implement Kalmann filter
 - Generate rotation quaternions
 
 ## License

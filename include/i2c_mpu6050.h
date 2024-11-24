@@ -19,6 +19,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+
 #ifndef _I2C_MPU6050_H_
 #define _I2C_MPU6050_H_
 
@@ -50,6 +51,8 @@
 #define GYRO_XOUT_H 0x43
 #define GYRO_YOUT_H 0x45
 #define GYRO_ZOUT_H 0x47
+
+#define DELTA_T 0.1f // delta_t in seconds(used for yaw calculation)
 
 // MPU6050 Configuration Parameters
 typedef enum {
@@ -104,6 +107,7 @@ typedef struct {
         float gyroX, gyroY, gyroZ;
         float yaw, pitch, roll;
         float tempC; // This is the temperature in degree Celsius
+        float gyroZ_error;
 } mpu6050_data;
 
 typedef struct {
@@ -114,6 +118,7 @@ typedef struct {
 } mpu6050_device;
 
 // Function prototypes
+// mpu6050 Functions
 void mpu6050_init(mpu6050_device *device);
 void mpu6050_set_gyro_scale(mpu6050_device *device);
 void mpu6050_set_accel_range(mpu6050_device *device);
@@ -138,6 +143,9 @@ void mpu6050_print_imu_data(mpu6050_device *device, mpu6050_data *sensor_data);
 void mpu6050_print_euler_angles(mpu6050_device *device,
                                 mpu6050_data *sensor_data);
 
+void mpu6050_run_euler_calibration(mpu6050_device *device,
+                                   mpu6050_data *sensor_data);
+
 // This function sets up the mpu6050 to the default i2c instance which is on
 // gpio// 4 and 5, it also initializes the i2c to 400kHz
 mpu6050_device *mpu6050_default_config();
@@ -146,5 +154,9 @@ mpu6050_device *mpu6050_set_config(i2c_inst_t *i2c_instance,
                                    uint8_t device_address, ACCEL_RANGE accel,
                                    GYRO_SCALE gyro, int device_sample_rate,
                                    bool fifo);
+
+// General Functions
+// Estimate the gyro error for later integration use
+float estimate_gyroZ_error(mpu6050_device *device);
 
 #endif // _I2C_MPU6050_H_

@@ -66,6 +66,8 @@
 #define DLPF_CFG_5_RATE 10.0f
 #define DLPF_CFG_6_RATE 5.0f
 
+#define GYRO_ERROR_ITERATION 50
+
 mpu6050_config default_config = {.gyro_scale = GYRO_SCALE_250DPS,
                                  .accel_range = ACCEL_RANGE_2G,
                                  .fifo_en = false,
@@ -245,14 +247,19 @@ void mpu6050_gen_euler_angles(mpu6050_device *device,
         acos(sensor_data->accelZ /
              sqrt(pow(sensor_data->accelX, 2) + pow(sensor_data->accelZ, 2))) *
         180.0f / M_PI;
+    sensor_data->yaw =
+        sensor_data->yaw +
+        ((sensor_data->gyroZ - sensor_data->gyroZ_error) * DELTA_T);
 }
 
 void mpu6050_print_euler_angles(mpu6050_device *device,
                                 mpu6050_data *sensor_data) {
     mpu6050_gen_euler_angles(device, sensor_data);
 
-    printf("roll: %f degrees\t pitch: %f degrees\n", sensor_data->roll,
-           sensor_data->pitch);
+    printf("roll: %f degrees\t pitch: %f degrees\t yaw: %f degrees\n "
+           "yaw_error: %f degrees\n",
+           sensor_data->roll, sensor_data->pitch, sensor_data->yaw,
+           sensor_data->gyroZ_error);
 }
 
 void mpu6050_print_imu_data(mpu6050_device *device, mpu6050_data *sensor_data) {
@@ -265,4 +272,28 @@ void mpu6050_print_imu_data(mpu6050_device *device, mpu6050_data *sensor_data) {
            sensor_data->tempC);
     printf("gyroX: %f dps\t gyroY: %f dps\t gyroZ: %f dps\n",
            sensor_data->gyroX, sensor_data->gyroY, sensor_data->gyroZ);
+}
+
+void mpu6050_run_euler_calibration(mpu6050_device *device,
+                                   mpu6050_data *sensor_data) {
+
+    sensor_data->gyroZ_error = estimate_gyroZ_error(device);
+}
+
+float estimate_gyroZ_error(mpu6050_device *device) {
+    mpu6050_data temp_data;
+
+    float totalError = 0;
+    for (int i = 0; i < GYRO_ERROR_ITERATION; i++) {
+        mpu6050_poll_data(device, &temp_data);
+        mpu6050_process_raw(device, &temp_data);
+
+        totalError += temp_data.gyroZ;
+
+        printf("\rProgress: %d/%d Error Iterations", i, GYRO_ERROR_ITERATION);
+        fflush(stdout);
+        sleep_ms(50);
+    }
+
+    return totalError / GYRO_ERROR_ITERATION;
 }
