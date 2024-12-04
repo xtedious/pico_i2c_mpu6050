@@ -52,7 +52,7 @@
 #define GYRO_YOUT_H 0x45
 #define GYRO_ZOUT_H 0x47
 
-#define DELTA_T 0.1f // delta_t in seconds(used for yaw calculation)
+#define DELTA_T 0.1f // delta_t in seconds(used for integration calculation)
 
 // MPU6050 Configuration Parameters
 typedef enum {
@@ -105,9 +105,16 @@ typedef struct {
         int16_t rawTemp;
         float accelX, accelY, accelZ;
         float gyroX, gyroY, gyroZ;
-        float yaw, pitch, roll;
+        // signed angle from the normal vecto of the sensor,
+        // Note yaw is a signed angle so direction of rotation can be determind
+        float roll, pitch, yaw;
+        // signed area of the data drom the gyroscope, gyroZ integral(yaw) is
+        // used for yaw calculation Ouput is in degrees not radians. Only
+        // usefull for knowing signed deviation from the imu level Call
+        // mpu6050_run_euler_calibration() to minimise error in calculation.
+        float int_roll, int_pitch;
         float tempC; // This is the temperature in degree Celsius
-        float gyroZ_error;
+        float gyroX_error, gyroY_error, gyroZ_error;
 } mpu6050_data;
 
 typedef struct {
@@ -115,6 +122,7 @@ typedef struct {
         uint8_t addr;
         mpu6050_config *config;
         float accel_lsb, gyro_lsb;
+        uint sda_pin, scl_pin;
 } mpu6050_device;
 
 // Function prototypes
@@ -139,9 +147,10 @@ void mpu6050_gen_euler_angles(mpu6050_device *device,
 // temp in degree Celsius)
 void mpu6050_print_imu_data(mpu6050_device *device, mpu6050_data *sensor_data);
 
-// Prints yaw, pitch and roll
+// Prints yaw, pitch and roll, passing true in the last parameter will print
+// calculated gyro errors and signed_roll and signed_pitch.
 void mpu6050_print_euler_angles(mpu6050_device *device,
-                                mpu6050_data *sensor_data);
+                                mpu6050_data *sensor_data, bool full);
 
 void mpu6050_run_euler_calibration(mpu6050_device *device,
                                    mpu6050_data *sensor_data);
@@ -150,13 +159,13 @@ void mpu6050_run_euler_calibration(mpu6050_device *device,
 // gpio// 4 and 5, it also initializes the i2c to 400kHz
 mpu6050_device *mpu6050_default_config();
 
-mpu6050_device *mpu6050_set_config(i2c_inst_t *i2c_instance,
-                                   uint8_t device_address, ACCEL_RANGE accel,
-                                   GYRO_SCALE gyro, int device_sample_rate,
-                                   bool fifo);
+mpu6050_device *mpu6050_set_config(i2c_inst_t *i2c_instance, uint gpio_sda,
+                                   uint gpio_scl, uint8_t device_address,
+                                   ACCEL_RANGE accel, GYRO_SCALE gyro,
+                                   int device_sample_rate, bool fifo);
 
 // General Functions
 // Estimate the gyro error for later integration use
-float estimate_gyroZ_error(mpu6050_device *device);
+float estimate_gyro_error(mpu6050_device *device);
 
 #endif // _I2C_MPU6050_H_

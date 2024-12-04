@@ -28,6 +28,13 @@
 #include <math.h>
 #include <stdio.h>
 
+#define DEBUG 1
+#if DEBUG
+#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#else
+#define DEBUG_PRINT(...)
+#endif
+
 // ACCEL and GYRO Settings
 #define ACCEL_2G 0x00
 #define ACCEL_4G 0x01
@@ -109,18 +116,29 @@ void mpu6050_init(mpu6050_device *device) {
 }
 
 mpu6050_device *mpu6050_default_config() {
+
     static mpu6050_device device;
     device.config = &default_config;
     device.addr = MPU6050_ADDR;
     device.i2c_inst = i2c0;
+    device.scl_pin = PICO_DEFAULT_I2C_SCL_PIN;
+    device.sda_pin = PICO_DEFAULT_I2C_SDA_PIN;
+
+    gpio_init(PICO_DEFAULT_I2C_SDA_PIN);
+    gpio_init(PICO_DEFAULT_I2C_SCL_PIN);
+    gpio_set_function(PICO_DEFAULT_I2C_SDA_PIN, GPIO_FUNC_I2C);
+    gpio_set_function(PICO_DEFAULT_I2C_SCL_PIN, GPIO_FUNC_I2C);
+    gpio_pull_up(PICO_DEFAULT_I2C_SDA_PIN);
+    gpio_pull_up(PICO_DEFAULT_I2C_SCL_PIN);
 
     return &device;
 }
 
-mpu6050_device *mpu6050_set_config(i2c_inst_t *i2c_instance,
-                                   uint8_t device_address, ACCEL_RANGE accel,
-                                   GYRO_SCALE gyro, int device_sample_rate,
-                                   bool fifo) {
+mpu6050_device *mpu6050_set_config(i2c_inst_t *i2c_instance, uint gpio_sda,
+                                   uint gpio_scl, uint8_t device_address,
+                                   ACCEL_RANGE accel, GYRO_SCALE gyro,
+                                   int device_sample_rate, bool fifo) {
+
     static mpu6050_device device;
     static mpu6050_config conf;
 
@@ -128,6 +146,15 @@ mpu6050_device *mpu6050_set_config(i2c_inst_t *i2c_instance,
 
     device.addr = device_address;
     device.i2c_inst = i2c_instance;
+    device.sda_pin = gpio_sda;
+    device.scl_pin = gpio_scl;
+
+    gpio_init(device.sda_pin);
+    gpio_init(device.scl_pin);
+    gpio_set_function(device.sda_pin, GPIO_FUNC_I2C);
+    gpio_set_function(device.scl_pin, GPIO_FUNC_I2C);
+    gpio_pull_up(device.sda_pin);
+    gpio_pull_up(device.scl_pin);
 
     device.config->sample_rate = device_sample_rate;
     device.config->accel_range = ACCEL_RANGE_2G;
@@ -139,6 +166,7 @@ mpu6050_device *mpu6050_set_config(i2c_inst_t *i2c_instance,
 }
 
 void mpu6050_set_accel_range(mpu6050_device *device) {
+
     switch (device->config->accel_range) {
     case ACCEL_RANGE_2G:
         mpu6050_write_reg(device->i2c_inst, device->addr, ACCEL_CONFIG, 0x00);
@@ -162,6 +190,7 @@ void mpu6050_set_accel_range(mpu6050_device *device) {
 }
 
 void mpu6050_set_gyro_scale(mpu6050_device *device) {
+
     switch (device->config->gyro_scale) {
     case GYRO_SCALE_250DPS:
         mpu6050_write_reg(device->i2c_inst, device->addr, GYRO_CONFIG, 0x00);
@@ -202,6 +231,7 @@ void mpu6050_fifo_read(mpu6050_device *device, mpu6050_data *sensor_data) {
 }
 
 void mpu6050_poll_data(mpu6050_device *device, mpu6050_data *sensor_data) {
+
     uint8_t buffer[6];
 
     mpu6050_read_reg(device->i2c_inst, device->addr, ACCEL_XOUT_H, buffer, 6);
@@ -222,6 +252,7 @@ void mpu6050_poll_data(mpu6050_device *device, mpu6050_data *sensor_data) {
 
 static void mpu6050_process_raw(mpu6050_device *device,
                                 mpu6050_data *sensor_data) {
+
     sensor_data->accelX = sensor_data->rawAccel[0] / device->accel_lsb;
     sensor_data->accelY = sensor_data->rawAccel[1] / device->accel_lsb;
     sensor_data->accelZ = sensor_data->rawAccel[2] / device->accel_lsb;
@@ -236,37 +267,55 @@ static void mpu6050_process_raw(mpu6050_device *device,
 
 void mpu6050_gen_euler_angles(mpu6050_device *device,
                               mpu6050_data *sensor_data) {
+
     mpu6050_poll_data(device, sensor_data);
     mpu6050_process_raw(device, sensor_data);
 
+    float roll_dir = sensor_data->accelY > 0 ? 1.0f : -1.0f;
+    float pitch_dir = sensor_data->accelX > 0 ? 1.0f : -1.0f;
+
     sensor_data->roll =
+        roll_dir *
         acos(sensor_data->accelZ /
              sqrt(pow(sensor_data->accelY, 2) + pow(sensor_data->accelZ, 2))) *
         180.0f / M_PI;
     sensor_data->pitch =
+        pitch_dir *
         acos(sensor_data->accelZ /
              sqrt(pow(sensor_data->accelX, 2) + pow(sensor_data->accelZ, 2))) *
         180.0f / M_PI;
-    sensor_data->yaw =
-        sensor_data->yaw +
+    sensor_data->yaw +=
         ((sensor_data->gyroZ - sensor_data->gyroZ_error) * DELTA_T);
+
+    sensor_data->int_roll +=
+        ((sensor_data->gyroX - sensor_data->gyroX_error) * DELTA_T);
+    sensor_data->int_pitch +=
+        ((sensor_data->gyroY - sensor_data->gyroY_error) * DELTA_T);
 }
 
 void mpu6050_print_euler_angles(mpu6050_device *device,
-                                mpu6050_data *sensor_data) {
+                                mpu6050_data *sensor_data, bool full) {
+
     mpu6050_gen_euler_angles(device, sensor_data);
 
-    printf("roll: %f degrees\t pitch: %f degrees\t yaw: %f degrees\n "
-           "yaw_error: %f degrees\n",
-           sensor_data->roll, sensor_data->pitch, sensor_data->yaw,
-           sensor_data->gyroZ_error);
+    printf("roll: %f degrees\t pitch: %f degrees\t yaw: %f degrees\n ",
+           sensor_data->roll, sensor_data->pitch, sensor_data->yaw);
+
+    if (full) {
+        printf("s_roll: %f degrees\t s_pitch: %f degrees\n"
+               "roll_error: %f degrees\t pitch_error: %f degrees\t yaw_error: "
+               "%f degrees\n",
+               sensor_data->int_roll, sensor_data->int_pitch,
+               sensor_data->gyroX_error, sensor_data->gyroY_error,
+               sensor_data->gyroZ_error);
+    }
 }
 
 void mpu6050_print_imu_data(mpu6050_device *device, mpu6050_data *sensor_data) {
 
     mpu6050_poll_data(device, sensor_data);
-
     mpu6050_process_raw(device, sensor_data);
+
     printf("accelX: %f g\t accelY: %f g\t accelZ: %f g\n temp: %f C\n",
            sensor_data->accelX, sensor_data->accelY, sensor_data->accelZ,
            sensor_data->tempC);
@@ -277,10 +326,20 @@ void mpu6050_print_imu_data(mpu6050_device *device, mpu6050_data *sensor_data) {
 void mpu6050_run_euler_calibration(mpu6050_device *device,
                                    mpu6050_data *sensor_data) {
 
-    sensor_data->gyroZ_error = estimate_gyroZ_error(device);
+    mpu6050_poll_data(device, sensor_data);
+    mpu6050_process_raw(device, sensor_data);
+    mpu6050_gen_euler_angles(device, sensor_data);
+
+    sensor_data->int_roll = sensor_data->roll;
+    sensor_data->int_pitch = sensor_data->pitch;
+
+    sensor_data->gyroZ_error = estimate_gyro_error(device);
+    sensor_data->gyroY_error = estimate_gyro_error(device);
+    sensor_data->gyroX_error = estimate_gyro_error(device);
 }
 
-float estimate_gyroZ_error(mpu6050_device *device) {
+float estimate_gyro_error(mpu6050_device *device) {
+
     mpu6050_data temp_data;
 
     float totalError = 0;
@@ -290,7 +349,8 @@ float estimate_gyroZ_error(mpu6050_device *device) {
 
         totalError += temp_data.gyroZ;
 
-        printf("\rProgress: %d/%d Error Iterations", i, GYRO_ERROR_ITERATION);
+        DEBUG_PRINT("\rProgress: %d/%d Error Iterations", i,
+                    GYRO_ERROR_ITERATION);
         fflush(stdout);
         sleep_ms(50);
     }
