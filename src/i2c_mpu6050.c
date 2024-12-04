@@ -115,7 +115,7 @@ void mpu6050_init(mpu6050_device *device) {
     }
 }
 
-mpu6050_device *mpu6050_default_config() {
+mpu6050_device mpu6050_default_config() {
 
     static mpu6050_device device;
     device.config = &default_config;
@@ -131,13 +131,13 @@ mpu6050_device *mpu6050_default_config() {
     gpio_pull_up(PICO_DEFAULT_I2C_SDA_PIN);
     gpio_pull_up(PICO_DEFAULT_I2C_SCL_PIN);
 
-    return &device;
+    return device;
 }
 
-mpu6050_device *mpu6050_set_config(i2c_inst_t *i2c_instance, uint gpio_sda,
-                                   uint gpio_scl, uint8_t device_address,
-                                   ACCEL_RANGE accel, GYRO_SCALE gyro,
-                                   int device_sample_rate, bool fifo) {
+mpu6050_device mpu6050_set_config(i2c_inst_t *i2c_instance, uint gpio_sda,
+                                  uint gpio_scl, uint8_t device_address,
+                                  ACCEL_RANGE accel, GYRO_SCALE gyro,
+                                  int device_sample_rate, bool fifo) {
 
     static mpu6050_device device;
     static mpu6050_config conf;
@@ -162,7 +162,7 @@ mpu6050_device *mpu6050_set_config(i2c_inst_t *i2c_instance, uint gpio_sda,
 
     device.config->fifo_en = fifo;
 
-    return &device;
+    return device;
 }
 
 void mpu6050_set_accel_range(mpu6050_device *device) {

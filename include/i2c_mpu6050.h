@@ -157,12 +157,12 @@ void mpu6050_run_euler_calibration(mpu6050_device *device,
 
 // This function sets up the mpu6050 to the default i2c instance which is on
 // gpio// 4 and 5, it also initializes the i2c to 400kHz
-mpu6050_device *mpu6050_default_config();
+mpu6050_device mpu6050_default_config();
 
-mpu6050_device *mpu6050_set_config(i2c_inst_t *i2c_instance, uint gpio_sda,
-                                   uint gpio_scl, uint8_t device_address,
-                                   ACCEL_RANGE accel, GYRO_SCALE gyro,
-                                   int device_sample_rate, bool fifo);
+mpu6050_device mpu6050_set_config(i2c_inst_t *i2c_instance, uint gpio_sda,
+                                  uint gpio_scl, uint8_t device_address,
+                                  ACCEL_RANGE accel, GYRO_SCALE gyro,
+                                  int device_sample_rate, bool fifo);
 
 // General Functions
 // Estimate the gyro error for later integration use
